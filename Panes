@@ -1,0 +1,1284 @@
+Отлично! Давайте создадим остальные страницы. Начнем с ParticipantsPage, JudgesPage, BracketsPage и ScoringPage.
+
+1. ParticipantsPage - Управление участниками
+
+Файл: src/pages/ParticipantsPage.tsx
+
+```typescript
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+} from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Participant } from '../types';
+import { participantAPI } from '../services/api';
+
+const ParticipantsPage: React.FC = () => {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+
+  useEffect(() => {
+    fetchParticipants();
+  }, []);
+
+  const fetchParticipants = async () => {
+    try {
+      const response = await participantAPI.getAll();
+      setParticipants(response.data);
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setEditingParticipant(null);
+    setOpenDialog(true);
+  };
+
+  const handleEdit = (participant: Participant) => {
+    setEditingParticipant(participant);
+    setOpenDialog(true);
+  };
+
+  const handleSave = async (participantData: Partial<Participant>) => {
+    try {
+      if (editingParticipant) {
+        await participantAPI.update(editingParticipant.id, participantData);
+      } else {
+        await participantAPI.create(participantData);
+      }
+      setOpenDialog(false);
+      fetchParticipants();
+    } catch (error) {
+      console.error('Error saving participant:', error);
+    }
+  };
+
+  const getBeltColor = (beltLevel: string) => {
+    const colors: { [key: string]: string } = {
+      white: '#ffffff',
+      yellow: '#ffff00',
+      orange: '#ffa500',
+      green: '#008000',
+      blue: '#0000ff',
+      brown: '#8b4513',
+      black: '#000000',
+    };
+    return colors[beltLevel] || '#cccccc';
+  };
+
+  const getGenderText = (gender: string) => {
+    return gender === 'M' ? 'Мужской' : 'Женский';
+  };
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Участники</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreate}
+        >
+          Добавить участника
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>ФИО</TableCell>
+              <TableCell>Клуб</TableCell>
+              <TableCell>Пояс</TableCell>
+              <TableCell>Вес (кг)</TableCell>
+              <TableCell>Пол</TableCell>
+              <TableCell>Город</TableCell>
+              <TableCell>Действия</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {participants.map((participant) => (
+              <TableRow key={participant.id}>
+                <TableCell>
+                  {participant.user.first_name} {participant.user.last_name}
+                </TableCell>
+                <TableCell>{participant.club}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={participant.belt_level}
+                    size="small"
+                    sx={{
+                      backgroundColor: getBeltColor(participant.belt_level),
+                      color: participant.belt_level === 'black' ? 'white' : 'black',
+                      border: '1px solid #ccc'
+                    }}
+                  />
+                </TableCell>
+                <TableCell>{participant.weight}</TableCell>
+                <TableCell>{getGenderText(participant.gender)}</TableCell>
+                <TableCell>{participant.city}</TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleEdit(participant)}>
+                    <EditIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <ParticipantDialog
+        open={openDialog}
+        participant={editingParticipant}
+        onClose={() => setOpenDialog(false)}
+        onSave={handleSave}
+      />
+    </Box>
+  );
+};
+
+// Компонент диалога для создания/редактирования участника
+interface ParticipantDialogProps {
+  open: boolean;
+  participant: Participant | null;
+  onClose: () => void;
+  onSave: (data: Partial<Participant>) => void;
+}
+
+const ParticipantDialog: React.FC<ParticipantDialogProps> = ({
+  open,
+  participant,
+  onClose,
+  onSave,
+}) => {
+  const [formData, setFormData] = useState<Partial<Participant>>({
+    user: {
+      first_name: '',
+      last_name: '',
+      email: '',
+      username: '',
+    },
+    date_of_birth: '',
+    gender: 'M',
+    weight: 0,
+    belt_level: 'white',
+    club: '',
+    country: 'Россия',
+    city: '',
+    license_number: '',
+  });
+
+  useEffect(() => {
+    if (participant) {
+      setFormData({
+        user: {
+          first_name: participant.user.first_name,
+          last_name: participant.user.last_name,
+          email: participant.user.email,
+          username: participant.user.username,
+        },
+        date_of_birth: participant.date_of_birth,
+        gender: participant.gender,
+        weight: participant.weight,
+        belt_level: participant.belt_level,
+        club: participant.club,
+        country: participant.country,
+        city: participant.city,
+        license_number: participant.license_number,
+      });
+    } else {
+      setFormData({
+        user: {
+          first_name: '',
+          last_name: '',
+          email: '',
+          username: '',
+        },
+        date_of_birth: '',
+        gender: 'M',
+        weight: 0,
+        belt_level: 'white',
+        club: '',
+        country: 'Россия',
+        city: '',
+        license_number: '',
+      });
+    }
+  }, [participant]);
+
+  const handleSubmit = () => {
+    onSave(formData);
+  };
+
+  const handleUserChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      user: {
+        ...prev.user!,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleChange = (field: keyof Participant, value: string | number) => {
+    if (field !== 'user') {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        {participant ? 'Редактировать участника' : 'Добавить участника'}
+      </DialogTitle>
+      <DialogContent>
+        <Box display="flex" flexDirection="column" gap={2} mt={1}>
+          <Box display="flex" gap={2}>
+            <TextField
+              label="Имя"
+              value={formData.user?.first_name || ''}
+              onChange={(e) => handleUserChange('first_name', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Фамилия"
+              value={formData.user?.last_name || ''}
+              onChange={(e) => handleUserChange('last_name', e.target.value)}
+              fullWidth
+            />
+          </Box>
+          <TextField
+            label="Email"
+            type="email"
+            value={formData.user?.email || ''}
+            onChange={(e) => handleUserChange('email', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Дата рождения"
+            type="date"
+            value={formData.date_of_birth || ''}
+            onChange={(e) => handleChange('date_of_birth', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <TextField
+            select
+            label="Пол"
+            value={formData.gender || 'M'}
+            onChange={(e) => handleChange('gender', e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="M">Мужской</MenuItem>
+            <MenuItem value="F">Женский</MenuItem>
+          </TextField>
+          <TextField
+            label="Вес (кг)"
+            type="number"
+            value={formData.weight || 0}
+            onChange={(e) => handleChange('weight', parseFloat(e.target.value))}
+            fullWidth
+          />
+          <TextField
+            select
+            label="Уровень пояса"
+            value={formData.belt_level || 'white'}
+            onChange={(e) => handleChange('belt_level', e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="white">Белый</MenuItem>
+            <MenuItem value="yellow">Желтый</MenuItem>
+            <MenuItem value="orange">Оранжевый</MenuItem>
+            <MenuItem value="green">Зеленый</MenuItem>
+            <MenuItem value="blue">Синий</MenuItem>
+            <MenuItem value="brown">Коричневый</MenuItem>
+            <MenuItem value="black">Черный</MenuItem>
+          </TextField>
+          <TextField
+            label="Клуб"
+            value={formData.club || ''}
+            onChange={(e) => handleChange('club', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Город"
+            value={formData.city || ''}
+            onChange={(e) => handleChange('city', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Номер лицензии"
+            value={formData.license_number || ''}
+            onChange={(e) => handleChange('license_number', e.target.value)}
+            fullWidth
+          />
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          {participant ? 'Обновить' : 'Создать'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default ParticipantsPage;
+```
+
+2. JudgesPage - Управление судьями
+
+Файл: src/pages/JudgesPage.tsx
+
+```typescript
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+} from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon } from '@mui/icons-material';
+import { Judge } from '../types';
+import { judgeAPI } from '../services/api';
+
+const JudgesPage: React.FC = () => {
+  const [judges, setJudges] = useState<Judge[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingJudge, setEditingJudge] = useState<Judge | null>(null);
+
+  useEffect(() => {
+    fetchJudges();
+  }, []);
+
+  const fetchJudges = async () => {
+    try {
+      const response = await judgeAPI.getAll();
+      setJudges(response.data);
+    } catch (error) {
+      console.error('Error fetching judges:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setEditingJudge(null);
+    setOpenDialog(true);
+  };
+
+  const handleEdit = (judge: Judge) => {
+    setEditingJudge(judge);
+    setOpenDialog(true);
+  };
+
+  const handleSave = async (judgeData: Partial<Judge>) => {
+    try {
+      if (editingJudge) {
+        await judgeAPI.update(editingJudge.id, judgeData);
+      } else {
+        await judgeAPI.create(judgeData);
+      }
+      setOpenDialog(false);
+      fetchJudges();
+    } catch (error) {
+      console.error('Error saving judge:', error);
+    }
+  };
+
+  const getLevelText = (level: string) => {
+    const levels: { [key: string]: string } = {
+      'c': 'C',
+      'b': 'B',
+      'a': 'A',
+      'referee': 'Рефери'
+    };
+    return levels[level] || level;
+  };
+
+  const getCategoryText = (category: string) => {
+    const categories: { [key: string]: string } = {
+      'national': 'Национальная',
+      'international': 'Международная',
+      'wskf': 'WSKF'
+    };
+    return categories[category] || category;
+  };
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Судьи</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreate}
+        >
+          Добавить судью
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>ФИО</TableCell>
+              <TableCell>Категория</TableCell>
+              <TableCell>Уровень</TableCell>
+              <TableCell>Ассоциация</TableCell>
+              <TableCell>Стаж (лет)</TableCell>
+              <TableCell>Статус</TableCell>
+              <TableCell>Действия</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {judges.map((judge) => (
+              <TableRow key={judge.id}>
+                <TableCell>
+                  {judge.user.first_name} {judge.user.last_name}
+                </TableCell>
+                <TableCell>{getCategoryText(judge.judge_category)}</TableCell>
+                <TableCell>{getLevelText(judge.judge_level)}</TableCell>
+                <TableCell>{judge.association}</TableCell>
+                <TableCell>{judge.experience_years}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={judge.is_active ? 'Активный' : 'Неактивный'}
+                    color={judge.is_active ? 'success' : 'default'}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleEdit(judge)}>
+                    <EditIcon />
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <JudgeDialog
+        open={openDialog}
+        judge={editingJudge}
+        onClose={() => setOpenDialog(false)}
+        onSave={handleSave}
+      />
+    </Box>
+  );
+};
+
+// Компонент диалога для создания/редактирования судьи
+interface JudgeDialogProps {
+  open: boolean;
+  judge: Judge | null;
+  onClose: () => void;
+  onSave: (data: Partial<Judge>) => void;
+}
+
+const JudgeDialog: React.FC<JudgeDialogProps> = ({
+  open,
+  judge,
+  onClose,
+  onSave,
+}) => {
+  const [formData, setFormData] = useState<Partial<Judge>>({
+    user: {
+      first_name: '',
+      last_name: '',
+      email: '',
+      username: '',
+    },
+    judge_category: 'national',
+    judge_level: 'c',
+    license_number: '',
+    license_expiry: '',
+    country: 'Россия',
+    association: '',
+    is_active: true,
+    experience_years: 0,
+  });
+
+  useEffect(() => {
+    if (judge) {
+      setFormData({
+        user: {
+          first_name: judge.user.first_name,
+          last_name: judge.user.last_name,
+          email: judge.user.email,
+          username: judge.user.username,
+        },
+        judge_category: judge.judge_category,
+        judge_level: judge.judge_level,
+        license_number: judge.license_number,
+        license_expiry: judge.license_expiry.split('T')[0],
+        country: judge.country,
+        association: judge.association,
+        is_active: judge.is_active,
+        experience_years: judge.experience_years,
+      });
+    } else {
+      setFormData({
+        user: {
+          first_name: '',
+          last_name: '',
+          email: '',
+          username: '',
+        },
+        judge_category: 'national',
+        judge_level: 'c',
+        license_number: '',
+        license_expiry: '',
+        country: 'Россия',
+        association: '',
+        is_active: true,
+        experience_years: 0,
+      });
+    }
+  }, [judge]);
+
+  const handleSubmit = () => {
+    const dataToSave = {
+      ...formData,
+      license_expiry: formData.license_expiry ? `${formData.license_expiry}T00:00:00` : '',
+    };
+    onSave(dataToSave);
+  };
+
+  const handleUserChange = (field: string, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      user: {
+        ...prev.user!,
+        [field]: value
+      }
+    }));
+  };
+
+  const handleChange = (field: keyof Judge, value: string | number | boolean) => {
+    if (field !== 'user') {
+      setFormData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        {judge ? 'Редактировать судью' : 'Добавить судью'}
+      </DialogTitle>
+      <DialogContent>
+        <Box display="flex" flexDirection="column" gap={2} mt={1}>
+          <Box display="flex" gap={2}>
+            <TextField
+              label="Имя"
+              value={formData.user?.first_name || ''}
+              onChange={(e) => handleUserChange('first_name', e.target.value)}
+              fullWidth
+            />
+            <TextField
+              label="Фамилия"
+              value={formData.user?.last_name || ''}
+              onChange={(e) => handleUserChange('last_name', e.target.value)}
+              fullWidth
+            />
+          </Box>
+          <TextField
+            label="Email"
+            type="email"
+            value={formData.user?.email || ''}
+            onChange={(e) => handleUserChange('email', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            select
+            label="Категория судьи"
+            value={formData.judge_category || 'national'}
+            onChange={(e) => handleChange('judge_category', e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="national">Национальная</MenuItem>
+            <MenuItem value="international">Международная</MenuItem>
+            <MenuItem value="wskf">WSKF</MenuItem>
+          </TextField>
+          <TextField
+            select
+            label="Уровень судьи"
+            value={formData.judge_level || 'c'}
+            onChange={(e) => handleChange('judge_level', e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="c">C</MenuItem>
+            <MenuItem value="b">B</MenuItem>
+            <MenuItem value="a">A</MenuItem>
+            <MenuItem value="referee">Рефери</MenuItem>
+          </TextField>
+          <TextField
+            label="Номер лицензии"
+            value={formData.license_number || ''}
+            onChange={(e) => handleChange('license_number', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Срок действия лицензии"
+            type="date"
+            value={formData.license_expiry || ''}
+            onChange={(e) => handleChange('license_expiry', e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            fullWidth
+          />
+          <TextField
+            label="Ассоциация"
+            value={formData.association || ''}
+            onChange={(e) => handleChange('association', e.target.value)}
+            fullWidth
+          />
+          <TextField
+            label="Стаж (лет)"
+            type="number"
+            value={formData.experience_years || 0}
+            onChange={(e) => handleChange('experience_years', parseInt(e.target.value))}
+            fullWidth
+          />
+          <TextField
+            select
+            label="Статус"
+            value={formData.is_active ? 'active' : 'inactive'}
+            onChange={(e) => handleChange('is_active', e.target.value === 'active')}
+            fullWidth
+          >
+            <MenuItem value="active">Активный</MenuItem>
+            <MenuItem value="inactive">Неактивный</MenuItem>
+          </TextField>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          {judge ? 'Обновить' : 'Создать'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default JudgesPage;
+```
+
+3. BracketsPage - Управление турнирными сетками
+
+Файл: src/pages/BracketsPage.tsx
+
+```typescript
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Paper,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Chip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  MenuItem,
+} from '@mui/material';
+import { Add as AddIcon, Edit as EditIcon, PlayArrow as StartIcon } from '@mui/icons-material';
+import { Bracket, Tournament, WeightCategory } from '../types';
+import { bracketAPI, tournamentAPI } from '../services/api';
+
+const BracketsPage: React.FC = () => {
+  const [brackets, setBrackets] = useState<Bracket[]>([]);
+  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [editingBracket, setEditingBracket] = useState<Bracket | null>(null);
+
+  useEffect(() => {
+    fetchBrackets();
+    fetchTournaments();
+  }, []);
+
+  const fetchBrackets = async () => {
+    try {
+      const response = await bracketAPI.getAll();
+      setBrackets(response.data);
+    } catch (error) {
+      console.error('Error fetching brackets:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTournaments = async () => {
+    try {
+      const response = await tournamentAPI.getAll();
+      setTournaments(response.data);
+    } catch (error) {
+      console.error('Error fetching tournaments:', error);
+    }
+  };
+
+  const handleCreate = () => {
+    setEditingBracket(null);
+    setOpenDialog(true);
+  };
+
+  const handleEdit = (bracket: Bracket) => {
+    setEditingBracket(bracket);
+    setOpenDialog(true);
+  };
+
+  const handleSave = async (bracketData: Partial<Bracket>) => {
+    try {
+      if (editingBracket) {
+        await bracketAPI.update(editingBracket.id, bracketData);
+      } else {
+        await bracketAPI.create(bracketData);
+      }
+      setOpenDialog(false);
+      fetchBrackets();
+    } catch (error) {
+      console.error('Error saving bracket:', error);
+    }
+  };
+
+  const handleGenerate = async (bracketId: number) => {
+    try {
+      await bracketAPI.generate(bracketId);
+      fetchBrackets();
+    } catch (error) {
+      console.error('Error generating bracket:', error);
+    }
+  };
+
+  const handleStart = async (bracketId: number) => {
+    try {
+      await bracketAPI.start(bracketId);
+      fetchBrackets();
+    } catch (error) {
+      console.error('Error starting bracket:', error);
+    }
+  };
+
+  const getTypeText = (type: string) => {
+    const types: { [key: string]: string } = {
+      'single_elimination': 'Олимпийская система',
+      'double_elimination': 'Двойная олимпийская',
+      'round_robin': 'Круговая система'
+    };
+    return types[type] || type;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'draft': return 'default';
+      case 'published': return 'primary';
+      case 'in_progress': return 'secondary';
+      case 'completed': return 'success';
+      default: return 'default';
+    }
+  };
+
+  return (
+    <Box>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+        <Typography variant="h4">Турнирные сетки</Typography>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={handleCreate}
+        >
+          Создать сетку
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Название</TableCell>
+              <TableCell>Турнир</TableCell>
+              <TableCell>Тип</TableCell>
+              <TableCell>Статус</TableCell>
+              <TableCell>Текущий раунд</TableCell>
+              <TableCell>Действия</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {brackets.map((bracket) => (
+              <TableRow key={bracket.id}>
+                <TableCell>{bracket.name}</TableCell>
+                <TableCell>{bracket.tournament.name}</TableCell>
+                <TableCell>{getTypeText(bracket.bracket_type)}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={bracket.status}
+                    color={getStatusColor(bracket.status) as any}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  {bracket.current_round > 0 ? `${bracket.current_round}/${bracket.max_rounds}` : '-'}
+                </TableCell>
+                <TableCell>
+                  <IconButton onClick={() => handleEdit(bracket)}>
+                    <EditIcon />
+                  </IconButton>
+                  {bracket.status === 'draft' && (
+                    <IconButton onClick={() => handleGenerate(bracket.id)}>
+                      <StartIcon />
+                    </IconButton>
+                  )}
+                  {bracket.status === 'published' && (
+                    <Button 
+                      size="small" 
+                      onClick={() => handleStart(bracket.id)}
+                    >
+                      Начать
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <BracketDialog
+        open={openDialog}
+        bracket={editingBracket}
+        tournaments={tournaments}
+        onClose={() => setOpenDialog(false)}
+        onSave={handleSave}
+      />
+    </Box>
+  );
+};
+
+// Компонент диалога для создания/редактирования сетки
+interface BracketDialogProps {
+  open: boolean;
+  bracket: Bracket | null;
+  tournaments: Tournament[];
+  onClose: () => void;
+  onSave: (data: Partial<Bracket>) => void;
+}
+
+const BracketDialog: React.FC<BracketDialogProps> = ({
+  open,
+  bracket,
+  tournaments,
+  onClose,
+  onSave,
+}) => {
+  const [formData, setFormData] = useState<Partial<Bracket>>({
+    tournament: undefined,
+    weight_category: undefined,
+    name: '',
+    bracket_type: 'single_elimination',
+  });
+
+  const [selectedTournament, setSelectedTournament] = useState<Tournament | null>(null);
+
+  useEffect(() => {
+    if (bracket) {
+      setFormData({
+        tournament: bracket.tournament.id,
+        weight_category: bracket.weight_category.id,
+        name: bracket.name,
+        bracket_type: bracket.bracket_type,
+      });
+      setSelectedTournament(bracket.tournament);
+    } else {
+      setFormData({
+        tournament: undefined,
+        weight_category: undefined,
+        name: '',
+        bracket_type: 'single_elimination',
+      });
+      setSelectedTournament(null);
+    }
+  }, [bracket]);
+
+  const handleSubmit = () => {
+    onSave(formData);
+  };
+
+  const handleChange = (field: keyof Bracket, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    if (field === 'tournament') {
+      const tournament = tournaments.find(t => t.id === value);
+      setSelectedTournament(tournament || null);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>
+        {bracket ? 'Редактировать сетку' : 'Создать сетку'}
+      </DialogTitle>
+      <DialogContent>
+        <Box display="flex" flexDirection="column" gap={2} mt={1}>
+          <TextField
+            select
+            label="Турнир"
+            value={formData.tournament || ''}
+            onChange={(e) => handleChange('tournament', parseInt(e.target.value))}
+            fullWidth
+          >
+            {tournaments.map((tournament) => (
+              <MenuItem key={tournament.id} value={tournament.id}>
+                {tournament.name}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          {selectedTournament && (
+            <TextField
+              select
+              label="Весовая категория"
+              value={formData.weight_category || ''}
+              onChange={(e) => handleChange('weight_category', parseInt(e.target.value))}
+              fullWidth
+            >
+              {selectedTournament.weight_categories?.map((category) => (
+                <MenuItem key={category.id} value={category.id}>
+                  {category.name} ({category.gender === 'M' ? 'М' : 'Ж'})
+                </MenuItem>
+              ))}
+            </TextField>
+          )}
+
+          <TextField
+            label="Название сетки"
+            value={formData.name || ''}
+            onChange={(e) => handleChange('name', e.target.value)}
+            fullWidth
+          />
+
+          <TextField
+            select
+            label="Тип сетки"
+            value={formData.bracket_type || 'single_elimination'}
+            onChange={(e) => handleChange('bracket_type', e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="single_elimination">Олимпийская система</MenuItem>
+            <MenuItem value="double_elimination">Двойная олимпийская система</MenuItem>
+            <MenuItem value="round_robin">Круговая система</MenuItem>
+          </TextField>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button onClick={handleSubmit} variant="contained">
+          {bracket ? 'Обновить' : 'Создать'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default BracketsPage;
+```
+
+4. ScoringPage - Система оценивания
+
+Файл: src/pages/ScoringPage.tsx
+
+```typescript
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Card,
+  CardContent,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Paper,
+  Chip,
+} from '@mui/material';
+import { SportsMartialArts as MatchIcon, Score as ScoreIcon } from '@mui/icons-material';
+import { Match } from '../types';
+import { matchAPI } from '../services/api';
+
+const ScoringPage: React.FC = () => {
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchMatches();
+  }, []);
+
+  const fetchMatches = async () => {
+    try {
+      const response = await matchAPI.getAll();
+      // Фильтруем матчи, которые готовы к оцениванию или в процессе
+      const scoringMatches = response.data.filter(
+        match => match.status === 'scheduled' || match.status === 'in_progress'
+      );
+      setMatches(scoringMatches);
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartScoring = (matchId: number) => {
+    // Здесь будет логика начала оценивания
+    console.log('Start scoring for match:', matchId);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'scheduled': return 'primary';
+      case 'in_progress': return 'secondary';
+      case 'completed': return 'success';
+      case 'cancelled': return 'error';
+      default: return 'default';
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    const statuses: { [key: string]: string } = {
+      'scheduled': 'Запланирован',
+      'in_progress': 'В процессе',
+      'completed': 'Завершен',
+      'cancelled': 'Отменен',
+      'walkover': 'Вуко'
+    };
+    return statuses[status] || status;
+  };
+
+  return (
+    <Box>
+      <Typography variant="h4" gutterBottom>
+        Система оценивания
+      </Typography>
+      <Typography variant="subtitle1" color="text.secondary" gutterBottom>
+        Управление процессом оценивания матчей
+      </Typography>
+
+      {/* Статистика */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 3,
+          mb: 4
+        }}
+      >
+        <Card sx={{ minWidth: 200 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={2}>
+              <MatchIcon color="primary" />
+              <Box>
+                <Typography color="text.secondary">
+                  Всего матчей
+                </Typography>
+                <Typography variant="h4">
+                  {matches.length}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card sx={{ minWidth: 200 }}>
+          <CardContent>
+            <Box display="flex" alignItems="center" gap={2}>
+              <ScoreIcon color="secondary" />
+              <Box>
+                <Typography color="text.secondary">
+                  Ожидают оценки
+                </Typography>
+                <Typography variant="h4">
+                  {matches.filter(m => m.status === 'scheduled').length}
+                </Typography>
+              </Box>
+            </Box>
+          </CardContent>
+        </Card>
+      </Box>
+
+      {/* Список матчей для оценивания */}
+      <Typography variant="h5" gutterBottom>
+        Матчи для оценивания
+      </Typography>
+
+      <TableContainer component={Paper}>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>ID матча</TableCell>
+              <TableCell>Раунд</TableCell>
+              <TableCell>Участник 1</TableCell>
+              <TableCell>Участник 2</TableCell>
+              <TableCell>Статус</TableCell>
+              <TableCell>Действия</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {matches.map((match) => (
+              <TableRow key={match.id}>
+                <TableCell>#{match.id}</TableCell>
+                <TableCell>{match.round}</TableCell>
+                <TableCell>
+                  {match.participant1 
+                    ? `${match.participant1.user.first_name} ${match.participant1.user.last_name}`
+                    : 'TBD'
+                  }
+                </TableCell>
+                <TableCell>
+                  {match.participant2 
+                    ? `${match.participant2.user.first_name} ${match.participant2.user.last_name}`
+                    : 'TBD'
+                  }
+                </TableCell>
+                <TableCell>
+                  <Chip
+                    label={getStatusText(match.status)}
+                    color={getStatusColor(match.status) as any}
+                    size="small"
+                  />
+                </TableCell>
+                <TableCell>
+                  {match.status === 'scheduled' && (
+                    <Button 
+                      variant="contained" 
+                      size="small"
+                      onClick={() => handleStartScoring(match.id)}
+                    >
+                      Начать оценку
+                    </Button>
+                  )}
+                  {match.status === 'in_progress' && (
+                    <Button 
+                      variant="outlined" 
+                      size="small"
+                      onClick={() => handleStartScoring(match.id)}
+                    >
+                      Продолжить
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {matches.length === 0 && (
+        <Box textAlign="center" py={4}>
+          <Typography variant="h6" color="text.secondary">
+            Нет матчей для оценивания
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Все матчи завершены или еще не созданы
+          </Typography>
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default ScoringPage;
+```
+
+Обновление API сервиса
+
+Добавьте в src/services/api.ts недостающие методы:
+
+```typescript
+// Добавьте эти методы в конец файла api.ts
+
+export const weightCategoryAPI = {
+  getAll: () => api.get<WeightCategory[]>('/tournaments/weight-categories/'),
+  getById: (id: number) => api.get<WeightCategory>(`/tournaments/weight-categories/${id}/`),
+  create: (data: Partial<WeightCategory>) => api.post<WeightCategory>('/tournaments/weight-categories/', data),
+  update: (id: number, data: Partial<WeightCategory>) => api.put<WeightCategory>(`/tournaments/weight-categories/${id}/`, data),
+  delete: (id: number) => api.delete(`/tournaments/weight-categories/${id}/`),
+};
+```
+
+Обновление типов
+
+Убедитесь, что в src/types/index.ts есть все необходимые типы:
+
+```typescript
+// Добавьте если отсутствует
+export interface WeightCategory {
+  id: number;
+  tournament: number;
+  name: string;
+  min_weight: number;
+  max_weight: number;
+  gender: 'M' | 'F';
+}
+```
+
+Теперь у вас есть полный набор страниц для управления системой соревнований по каратэ! Все страницы используют единый стиль и имеют базовый CRUD функционал.
